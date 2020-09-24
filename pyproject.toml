@@ -2,7 +2,7 @@
 name = "fixitfelix"
 version = "0.1.0"
 description = ""
-authors = ["Carsten Zwilling <czwilling@point-8.de>"]
+authors = ["Carsten Zwilling <czwilling@point-8.de>", "Julian Surmann <jsurmann@point-8.de>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
