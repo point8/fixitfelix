@@ -8,7 +8,7 @@ import tqdm
 from fixitfelix import either, error_handling, source, tdms_helpers
 
 
-def calculate_chunk_indices_to_preserve(
+def calculate_index_ranges_to_preserve(
     chunk_size: int, recurrence_size: int, len_data: int
 ) -> List[Tuple[int, int]]:
     """Calculates the index ranges of valid data.
@@ -22,14 +22,14 @@ def calculate_chunk_indices_to_preserve(
     len_data: Maximum length of the initial data arrays
 
     Returns:
-    List with array ranges.
+    List with array ranges in the form (offset, length)
     """
-    left_indices = np.arange(0, len_data, chunk_size + recurrence_size)
-    right_indices = left_indices + chunk_size
-    right_indices[-1] = min(len_data, right_indices[-1])
-    return list(zip(left_indices, right_indices))
+    offsets = np.arange(0,len_data, chunk_size+recurrence_size)
+    lengths = [chunk_size]*(len(offsets)-1) 
+    lengths.append(min(chunk_size,len_data-len(lengths)*(chunk_size+recurrence_size)))
 
-
+    return list(zip(offsets,lengths))
+    
 def prepare_data_correction(
     source_file: source.SourceFile,
 ) -> List[Tuple[int, int]]:
@@ -44,12 +44,12 @@ def prepare_data_correction(
     maximum_size = tdms_helpers.get_maximum_array_size(
         source_file.tdms_operator
     )
-    chunk_indices = calculate_chunk_indices_to_preserve(
+    index_ranges = calculate_index_ranges_to_preserve(
         source_file.meta.chunk_size,
         source_file.meta.recurrence_size,
         maximum_size,
     )
-    return chunk_indices
+    return index_ranges
 
 
 def combine_with_tdms(
@@ -91,7 +91,7 @@ def check_export_path(
 
 def write_chunks_to_file(
     tdms_writer: nptdms.TdmsWriter,
-    chunk_indices: List[Tuple[int, int]],
+    index_ranges: List[Tuple[int, int]],
     group,
     channel,
 ):
@@ -99,12 +99,12 @@ def write_chunks_to_file(
 
     Arguments:
     tdms_writer: Tdms handle for the new file
-    chunk_indices: Chunk Indices that point to valid data slices
+    index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
     """
-    for (min_idx, max_idx) in tqdm.tqdm(chunk_indices):
-        data = channel.data[min_idx:max_idx]
+    for (offset,length) in tqdm.tqdm(index_ranges):
+        data = channel.read_data(offset=offset,length=length)
         new_channel = nptdms.ChannelObject(group.name, channel.name, data)
         tdms_writer.write_segment([new_channel])
 
@@ -142,12 +142,12 @@ def export_correct_data(
         raise Exception(error_handling.ERROR_DESCRIPTIONS.get(res._value))
     source_file = res._value
 
-    chunk_indices = prepare_data_correction(source_file)
+    index_ranges = prepare_data_correction(source_file)
 
     with nptdms.TdmsWriter(export_path) as tdms_writer:
         for group in source_file.tdms_operator.groups():
             for channel in group.channels():
                 if len(channel) > 0:
                     write_chunks_to_file(
-                        tdms_writer, chunk_indices, group, channel
+                        tdms_writer, index_ranges, group, channel
                     )
