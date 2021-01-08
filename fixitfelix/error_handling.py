@@ -85,7 +85,7 @@ def check_for_same_length(tdms_operator: nptdms.TdmsFile) -> either.Either:
 
 
 def check_positive_data_length(tdms_operator: nptdms.TdmsFile) -> either.Either:
-    """Checks wheter the data length is positive"""
+    """Checks whether the data length is positive"""
     max_length = tdms_helpers.get_maximum_array_size(tdms_operator)
     if max_length <= 0:
         return either.Left(ErrorCode.DATALENGTH_NONPOSITIVE)
@@ -103,14 +103,14 @@ def check_tdms(tdms_operator: nptdms.TdmsFile) -> either.Either:
 
 # Check whole SourceFile for consistency
 
-
 def calculate_drop_indices(
     source_file: source.SourceFile,
 ) -> List[Tuple[int, int]]:
-    """Calculates index positions of duplicates in file.
+    """Calculates index positions of duplicates in file and returns them in the form of tuples
+    (offset, length)
 
     This function is the counter part of
-    fix.calculate_chunk_indices_to_preserve and is only used in error handling.
+    fix.calculate_index_ranges_to_preserve and is only used in error handling.
 
     Arguments:
     source_file: Container object for the tdms file with params
@@ -121,10 +121,12 @@ def calculate_drop_indices(
     len_data = tdms_helpers.get_maximum_array_size(source_file.tdms_operator)
     chunk_size = source_file.meta.chunk_size
     recurrence_size = source_file.meta.recurrence_size
-    left_indices = np.arange(chunk_size, len_data, chunk_size + recurrence_size)
-    right_indices = left_indices + recurrence_size
-    right_indices[-1] = min(len_data, right_indices[-1])
-    return list(zip(left_indices, right_indices))
+
+    offsets = np.arange(chunk_size, len_data, chunk_size + recurrence_size)
+    lengths = [recurrence_size]*(len(offsets)-1) 
+    lengths.append(min(recurrence_size,len_data-offsets[-1]))
+
+    return list(zip(offsets,lengths))
 
 
 def check_for_correct_repetition(
@@ -135,16 +137,16 @@ def check_for_correct_repetition(
     places.
     """
     # generate random test samples
-    delete_indices = np.array(calculate_drop_indices(source_file))
+    delete_ranges = np.array(calculate_drop_indices(source_file))
     number_samples_to_test = min(
-        source_file.meta.consistency_sample_size, len(delete_indices)
+        source_file.meta.consistency_sample_size, len(delete_ranges)
     )
     # np.random.choice does only take 1d arrays, so we need this
     # workaround by choosing 1d indices in range with len(delete_indices)
     chosen_deletes = np.random.choice(
-        len(delete_indices), number_samples_to_test, replace=False
+        len(delete_ranges), number_samples_to_test, replace=False
     )
-    delete_indices = delete_indices[chosen_deletes]
+    delete_ranges = delete_ranges[chosen_deletes]
 
     # prepare all tdms channels that contain data
     all_channels = list(
@@ -158,17 +160,16 @@ def check_for_correct_repetition(
 
     # test data of each test sample
     meta_data_suitable = True
-    for (min_idx, max_idx) in delete_indices:
+    for (offset,length) in delete_ranges:
         # calculate indices of the duplicates origin
-        origin_min_idx = min_idx - source_file.meta.recurrence_distance
-        origin_max_idx = max_idx - source_file.meta.recurrence_distance
-
+        origin_offset = offset - source_file.meta.recurrence_distance
+        
         # extract origin and duplicate data and compare
         duplicate_data = [
-            old_channel.data[min_idx:max_idx] for old_channel in all_channels
+            old_channel.read_data(offset=offset, length=length) for old_channel in all_channels
         ]
         origin_data = [
-            old_channel.data[origin_min_idx:origin_max_idx]
+            old_channel.read_data(offset=origin_offset,length=length)
             for old_channel in all_channels
         ]
         if not np.array_equal(duplicate_data, origin_data):
@@ -177,19 +178,20 @@ def check_for_correct_repetition(
 
         # extract data points around the data above
         duplicate_front_values = [
-            old_channel.data[min_idx - 1 : min_idx][0]
+            old_channel.read_data(offset=offset-1,length=1)[0]
             for old_channel in all_channels
         ]
         duplicate_rear_values = [
-            old_channel.data[max_idx : max_idx + 1][0]
+            old_channel.read_data(offset=offset+length,length=1)[0]
             for old_channel in all_channels
         ]
+        print(duplicate_front_values, duplicate_rear_values)
         origin_front_values = [
-            old_channel.data[origin_min_idx - 1 : origin_min_idx][0]
+            old_channel.read_data(offset=origin_offset-1,length=1)[0]
             for old_channel in all_channels
         ]
         origin_rear_values = [
-            old_channel.data[origin_max_idx : origin_max_idx + 1][0]
+            old_channel.read_data(offset=origin_offset+length,length=1)[0]
             for old_channel in all_channels
         ]
         # check if they are not part of duplication
@@ -214,7 +216,6 @@ def load_tdms_file(path: pathlib.Path) -> either.Either:
     """Tries to load the tdms file located at path and returns Either[ErrorCode,np.tdms.TdmsFile]"""
     try:
         return either.Right(
-            nptdms.TdmsFile(file=path, memmap_dir=tempfile.gettempdir())
-        )
+            nptdms.TdmsFile.open(file=path))
     except FileNotFoundError:
         return either.Left(ErrorCode.TDMSPATH_NONEXISTENT)
