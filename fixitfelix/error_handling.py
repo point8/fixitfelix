@@ -185,7 +185,7 @@ def check_for_correct_repetition(
             old_channel.read_data(offset=offset+length,length=1)[0]
             for old_channel in all_channels
         ]
-        print(duplicate_front_values, duplicate_rear_values)
+        
         origin_front_values = [
             old_channel.read_data(offset=origin_offset-1,length=1)[0]
             for old_channel in all_channels
