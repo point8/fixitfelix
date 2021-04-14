@@ -1,5 +1,6 @@
 import enum
 import itertools
+import os
 import pathlib
 import tempfile
 from typing import List, Tuple
@@ -20,6 +21,9 @@ class ErrorCode(enum.Enum):
     DATALENGTH_NONPOSITIVE = enum.auto()
     TDMSPATH_NONEXISTENT = enum.auto()
     EXPORTPATH_NONEXISTENT = enum.auto()
+    DIRPATH_NONEXISTENT = enum.auto()
+    DIRPATH_EMPTY = enum.auto()
+    PATH_NONEXISTENT = enum.auto()
 
 
 ERROR_DESCRIPTIONS = {
@@ -29,8 +33,10 @@ ERROR_DESCRIPTIONS = {
     ErrorCode.RECURRENCESIZE_NEGATIVE: "Recurrence size is negative",
     ErrorCode.CHUNKSIZE_NONPOSITIVE: "Chunk size is not positive",
     ErrorCode.DATALENGTH_NONPOSITIVE: "Length of data is not positive",
-    ErrorCode.TDMSPATH_NONEXISTENT: "File does not exist",
+    ErrorCode.TDMSPATH_NONEXISTENT: "File does not exist or is not a tdms file",
     ErrorCode.EXPORTPATH_NONEXISTENT: "Export folder does not exist",
+    ErrorCode.DIRPATH_EMPTY: "Folder is empty",
+    ErrorCode.PATH_NONEXISTENT: "File or folder does not exist"
 }
 
 # Check MetaData for consistency
@@ -101,7 +107,31 @@ def check_tdms(tdms_operator: nptdms.TdmsFile) -> either.Either:
     )
 
 
+# Check if path is file or dir
+
+
+def check_input_path(path: pathlib.Path) -> either.Either:
+    """Checks if file at given path is a tdms file or a folder
+    """
+    try:
+        nptdms.TdmsFile.open(file=path)
+        return either.Right(path)
+    except (FileNotFoundError, IsADirectoryError):
+        if not path.is_dir():
+            return either.Left(ErrorCode.PATH_NONEXISTENT)
+        return either.Right(path)
+
+
+def check_dir_empty(dir_path: pathlib.Path) -> either.Either:
+    """Checks if directory at given path is empty
+    """
+    if not os.listdir(dir_path):
+        return either.Left(ErrorCode.DIRPATH_EMPTY)
+    return either.Right(dir_path)
+
+
 # Check whole SourceFile for consistency
+
 
 def calculate_drop_indices(
     source_file: source.SourceFile,
