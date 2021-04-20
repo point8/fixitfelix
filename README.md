@@ -12,7 +12,7 @@ We are lucky, because the bug behavior is well understood and follows simple pat
 
 You can see an example in the image below:
 
-![No image fixitfelix_image.png found!](visualization_of_recurrence_pattern.png "Example")
+![Visual example of the pattern in the data](visualization_of_recurrence_pattern.png "Example")
 
 As you can see, three variables are needed to describe the ongoing:
 
@@ -39,6 +39,13 @@ Type `fixit --help` for additional information.
 
 The `[OPTIONS]` can be provided in the call, but fixitfelix is able to ask for all needed parameters afterwards. If available, previously used parameters are provided as default options.
 
-## Notes
+Always make sure to have free diskspace for the resulting corrected file.
 
-* Always make sure to have free diskspace for two copies of the original data (one for temporary storage while processing and one for the resulting corrected file).
+## Smart Erosion
+
+Point 8 is a partner in the research project SmartErosion.  This tool was created as part of the research project. The project is supported by funds from the __European Regional Development Fund (ERDF) 2014-2020 "Investment for Growth and Jobs"__.
+
+<p float="left">
+  <img src="Ziel2NRW_RGB_1809_jpg.jpg" width="48%" />
+  <img src="EFRE_Foerderhinweis_englisch_farbig.jpg" width="48%" /> 
+</p>
