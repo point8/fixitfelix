@@ -25,12 +25,17 @@ def calculate_index_ranges_to_preserve(
     Returns:
     List with array ranges in the form (offset, length)
     """
-    offsets = np.arange(0,len_data, chunk_size+recurrence_size)
-    lengths = [chunk_size]*(len(offsets)-1) 
-    lengths.append(min(chunk_size,len_data-len(lengths)*(chunk_size+recurrence_size)))
+    offsets = np.arange(0, len_data, chunk_size + recurrence_size)
+    lengths = [chunk_size] * (len(offsets) - 1)
+    lengths.append(
+        min(
+            chunk_size, len_data - len(lengths) * (chunk_size + recurrence_size)
+        )
+    )
 
-    return list(zip(offsets,lengths))
-    
+    return list(zip(offsets, lengths))
+
+
 def prepare_data_correction(
     source_file: source.SourceFile,
 ) -> List[Tuple[int, int]]:
@@ -78,9 +83,7 @@ def combine_with_tdms(
     return _f
 
 
-def check_export_path(
-    path: pathlib.Path,
-) -> either.Either:
+def check_export_path(path: pathlib.Path,) -> either.Either:
     """It should not be possible to choose a nonexistent folder in the export
     path. This function checks if this is satisfied.
     Return type is Either[error_handling.ErrorCode, pathlib.Path]"""
@@ -104,8 +107,8 @@ def write_chunks_to_file(
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
     """
-    for (offset,length) in tqdm.tqdm(index_ranges):
-        data = channel.read_data(offset=offset,length=length)
+    for (offset, length) in tqdm.tqdm(index_ranges):
+        data = channel.read_data(offset=offset, length=length)
         new_channel = nptdms.ChannelObject(group.name, channel.name, data)
         tdms_writer.write_segment([new_channel])
 
@@ -170,14 +173,13 @@ def export_correct_data(
     output_file: File path for the corrected TDMS file or folder.
     """
 
-
-    #Determines generalized export path
+    # Determines generalized export path
 
     path = pathlib.Path(filename)
 
     p = either.Right(path) | error_handling.check_input_path
     if isinstance(p, either.Left):
-            raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
+        raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
 
     if output_file == "":
         name = path.with_suffix("").name + "_corrected"
@@ -188,7 +190,6 @@ def export_correct_data(
     p = either.Right(export_path) | check_export_path
     if isinstance(p, either.Left):
         raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
-
 
     # Directory and single file are handled seperately
 
@@ -201,7 +202,6 @@ def export_correct_data(
             shutil.rmtree(export_path)
         export_path.mkdir()
 
-
         # Checks each file in folder for consistency
 
         files_in_dir = len(list(path.iterdir()))
@@ -210,15 +210,16 @@ def export_correct_data(
             print(f"Preprocess file {i+1} of {files_in_dir} at {tdms_file}")
             source_files.append(preprocess(meta=meta, path=tdms_file))
 
-
         # Corrects and exports each file in folder
 
         for i, tdms_file in enumerate(path.iterdir()):
             print(f"Fix file {i+1} of {files_in_dir} at {tdms_file}")
             name = tdms_file.with_suffix("").name + "_corrected.tdms"
-            export_to_tmds(source_file=source_files[i], export_path=export_path.joinpath(name))
-    
-    
+            export_to_tmds(
+                source_file=source_files[i],
+                export_path=export_path.joinpath(name),
+            )
+
     else:
         # Single file case
 
