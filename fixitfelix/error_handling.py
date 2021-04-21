@@ -37,7 +37,7 @@ ERROR_DESCRIPTIONS = {
     ErrorCode.EXPORTPATH_NONEXISTENT: "Export folder does not exist",
     ErrorCode.DIRPATH_EMPTY: "Folder is empty",
     ErrorCode.PATH_NONEXISTENT: "File or folder does not exist",
-    ErrorCode.PATH_NOT_TDMS_OR_DIR: "Input path is not a tdms file nor a folder"
+    ErrorCode.PATH_NOT_TDMS_OR_DIR: "Input path is not a tdms file nor a folder",
 }
 
 # Check MetaData for consistency
@@ -154,10 +154,10 @@ def calculate_drop_indices(
     recurrence_size = source_file.meta.recurrence_size
 
     offsets = np.arange(chunk_size, len_data, chunk_size + recurrence_size)
-    lengths = [recurrence_size]*(len(offsets)-1) 
-    lengths.append(min(recurrence_size,len_data-offsets[-1]))
+    lengths = [recurrence_size] * (len(offsets) - 1)
+    lengths.append(min(recurrence_size, len_data - offsets[-1]))
 
-    return list(zip(offsets,lengths))
+    return list(zip(offsets, lengths))
 
 
 def check_for_correct_repetition(
@@ -191,16 +191,17 @@ def check_for_correct_repetition(
 
     # test data of each test sample
     meta_data_suitable = True
-    for (offset,length) in delete_ranges:
+    for (offset, length) in delete_ranges:
         # calculate indices of the duplicates origin
         origin_offset = offset - source_file.meta.recurrence_distance
-        
+
         # extract origin and duplicate data and compare
         duplicate_data = [
-            old_channel.read_data(offset=offset, length=length) for old_channel in all_channels
+            old_channel.read_data(offset=offset, length=length)
+            for old_channel in all_channels
         ]
         origin_data = [
-            old_channel.read_data(offset=origin_offset,length=length)
+            old_channel.read_data(offset=origin_offset, length=length)
             for old_channel in all_channels
         ]
         if not np.array_equal(duplicate_data, origin_data):
@@ -209,20 +210,20 @@ def check_for_correct_repetition(
 
         # extract data points around the data above
         duplicate_front_values = [
-            old_channel.read_data(offset=offset-1,length=1)[0]
+            old_channel.read_data(offset=offset - 1, length=1)[0]
             for old_channel in all_channels
         ]
         duplicate_rear_values = [
-            old_channel.read_data(offset=offset+length,length=1)[0]
+            old_channel.read_data(offset=offset + length, length=1)[0]
             for old_channel in all_channels
         ]
-        
+
         origin_front_values = [
-            old_channel.read_data(offset=origin_offset-1,length=1)[0]
+            old_channel.read_data(offset=origin_offset - 1, length=1)[0]
             for old_channel in all_channels
         ]
         origin_rear_values = [
-            old_channel.read_data(offset=origin_offset+length,length=1)[0]
+            old_channel.read_data(offset=origin_offset + length, length=1)[0]
             for old_channel in all_channels
         ]
         # check if they are not part of duplication
@@ -246,7 +247,6 @@ def check_source_file(source_file: source.SourceFile) -> either.Either:
 def load_tdms_file(path: pathlib.Path) -> either.Either:
     """Tries to load the tdms file located at path and returns Either[ErrorCode,np.tdms.TdmsFile]"""
     try:
-        return either.Right(
-            nptdms.TdmsFile.open(file=path))
+        return either.Right(nptdms.TdmsFile.open(file=path))
     except FileNotFoundError:
         return either.Left(ErrorCode.TDMSPATH_NONEXISTENT)
