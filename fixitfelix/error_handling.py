@@ -1,6 +1,5 @@
 import enum
 import itertools
-import os
 import pathlib
 import tempfile
 from typing import List, Tuple
@@ -125,7 +124,7 @@ def check_input_path(path: pathlib.Path) -> either.Either:
 def check_dir_empty(dir_path: pathlib.Path) -> either.Either:
     """Checks if directory at given path is empty
     """
-    if not os.listdir(dir_path):
+    if not any(dir_path.iterdir()):
         return either.Left(ErrorCode.DIRPATH_EMPTY)
     return either.Right(dir_path)
 
