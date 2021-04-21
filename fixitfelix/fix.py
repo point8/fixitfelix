@@ -4,7 +4,6 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
-import os
 import shutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
@@ -111,7 +110,8 @@ def write_chunks_to_file(
         tdms_writer.write_segment([new_channel])
 
 
-def preprocess(meta: source.MetaData, path: pathlib.Path) -> Any:
+def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
+
     """Runs all consistency checks on given tdms file and meta data. All input parameters are checked for consistency.
     Moreover, the function raises an execption if MetaData and TdmsFile do not match.
 
@@ -128,7 +128,6 @@ def preprocess(meta: source.MetaData, path: pathlib.Path) -> Any:
 
     if isinstance(res, either.Left):
         raise Exception(error_handling.ERROR_DESCRIPTIONS.get(res._value))
-  
     return res._value
 
 
@@ -200,31 +199,24 @@ def export_correct_data(
 
         if export_path.exists():
             shutil.rmtree(export_path)
-        os.mkdir(export_path)
+        export_path.mkdir()
 
 
         # Checks each file in folder for consistency
 
-        files_in_dir = len([f for f in path.iterdir()])
-        file_count = 0
-        pre_files = []
-        for tdms_file in path.iterdir():
-            pre_data = {}
-            pre_data["tdms_file"] = tdms_file
-            file_count += 1
-            print(f"Preprocess file {file_count} of {files_in_dir} at {tdms_file}")
-            name = tdms_file.with_suffix("").name + "_corrected.tdms"
-            pre_data["export_file_path"] = export_path.joinpath(name)
-            pre_data["source_file"] = preprocess(meta=meta, path=tdms_file)
-            pre_files.append(pre_data)
+        files_in_dir = len(list(path.iterdir()))
+        source_files = []
+        for i, tdms_file in enumerate(path.iterdir()):
+            print(f"Preprocess file {i+1} of {files_in_dir} at {tdms_file}")
+            source_files.append(preprocess(meta=meta, path=tdms_file))
 
 
         # Corrects and exports each file in folder
 
-        for i in range(len(pre_files)):
-            file_name = pre_files[i]["tdms_file"]
-            print(f"Fix file {i+1} of {len(pre_files)} at {file_name}")
-            export_to_tmds(source_file=pre_files[i]["source_file"], export_path=pre_files[i]["export_file_path"])
+        for i, tdms_file in enumerate(path.iterdir()):
+            print(f"Fix file {i+1} of {files_in_dir} at {tdms_file}")
+            name = tdms_file.with_suffix("").name + "_corrected.tdms"
+            export_to_tmds(source_file=source_files[i], export_path=export_path.joinpath(name))
     
     
     else:
