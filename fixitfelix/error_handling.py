@@ -23,6 +23,7 @@ class ErrorCode(enum.Enum):
     DIRPATH_NONEXISTENT = enum.auto()
     DIRPATH_EMPTY = enum.auto()
     PATH_NONEXISTENT = enum.auto()
+    PATH_NOT_TDMS_OR_DIR = enum.auto()
 
 
 ERROR_DESCRIPTIONS = {
@@ -35,7 +36,8 @@ ERROR_DESCRIPTIONS = {
     ErrorCode.TDMSPATH_NONEXISTENT: "File does not exist or is not a tdms file",
     ErrorCode.EXPORTPATH_NONEXISTENT: "Export folder does not exist",
     ErrorCode.DIRPATH_EMPTY: "Folder is empty",
-    ErrorCode.PATH_NONEXISTENT: "File or folder does not exist"
+    ErrorCode.PATH_NONEXISTENT: "File or folder does not exist",
+    ErrorCode.PATH_NOT_TDMS_OR_DIR: "Input path is not a tdms file nor a folder"
 }
 
 # Check MetaData for consistency
@@ -117,7 +119,7 @@ def check_input_path(path: pathlib.Path) -> either.Either:
         return either.Right(path)
     except (FileNotFoundError, IsADirectoryError):
         if not path.is_dir():
-            return either.Left(ErrorCode.PATH_NONEXISTENT)
+            return either.Left(ErrorCode.PATH_NOT_TDMS_OR_DIR)
         return either.Right(path)
 
 
