@@ -159,8 +159,8 @@ def check_for_correct_repetition(
     )
 
     # test data of each test sample
-    meta_data_suitable = True
-    for (offset,length) in delete_ranges:
+    meta_data_suitable = False 
+    for (offset, length) in delete_ranges:
         # calculate indices of the duplicates origin
         origin_offset = offset - source_file.meta.recurrence_distance
         
@@ -195,13 +195,9 @@ def check_for_correct_repetition(
             for old_channel in all_channels
         ]
         # check if they are not part of duplication
-        if np.array_equal(duplicate_front_values, origin_front_values):
-            meta_data_suitable = False
-            break
-        if np.array_equal(duplicate_rear_values, origin_rear_values):
-            meta_data_suitable = False
-            break
-
+        if not(np.array_equal(duplicate_front_values, origin_front_values) or np.array_equal(duplicate_rear_values, origin_rear_values)):
+            meta_data_suitable = True
+        
     if not meta_data_suitable:
         return either.Left(ErrorCode.PARAMETERERROR)
     return either.Right(source_file)
