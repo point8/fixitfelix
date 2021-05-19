@@ -4,7 +4,6 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
-import psutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
 
