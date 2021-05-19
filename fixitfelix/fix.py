@@ -4,6 +4,7 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
+import psutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
 
@@ -24,12 +25,17 @@ def calculate_index_ranges_to_preserve(
     Returns:
     List with array ranges in the form (offset, length)
     """
-    offsets = np.arange(0,len_data, chunk_size+recurrence_size)
-    lengths = [chunk_size]*(len(offsets)-1) 
-    lengths.append(min(chunk_size,len_data-len(lengths)*(chunk_size+recurrence_size)))
+    offsets = np.arange(0, len_data, chunk_size + recurrence_size)
+    lengths = [chunk_size] * (len(offsets) - 1)
+    lengths.append(
+        min(
+            chunk_size, len_data - len(lengths) * (chunk_size + recurrence_size)
+        )
+    )
 
-    return list(zip(offsets,lengths))
-    
+    return list(zip(offsets, lengths))
+
+
 def prepare_data_correction(
     source_file: source.SourceFile,
 ) -> List[Tuple[int, int]]:
@@ -77,9 +83,7 @@ def combine_with_tdms(
     return _f
 
 
-def check_export_path(
-    path: pathlib.Path,
-) -> either.Either:
+def check_export_path(path: pathlib.Path,) -> either.Either:
     """It should not be possible to choose a nonexistent folder in the export
     path. This function checks if this is satisfied.
     Return type is Either[error_handling.ErrorCode, pathlib.Path]"""
@@ -94,6 +98,7 @@ def write_chunks_to_file(
     index_ranges: List[Tuple[int, int]],
     group,
     channel,
+    cached_read: bool,
 ):
     """Writes correct data slice per slice to disk.
 
@@ -102,11 +107,20 @@ def write_chunks_to_file(
     index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
+    cached_read: Determines which read method is used
     """
-    for (offset,length) in tqdm.tqdm(index_ranges):
-        data = channel.read_data(offset=offset,length=length)
-        new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-        tdms_writer.write_segment([new_channel])
+
+    if cached_read:
+        channel_data = channel.read_data()
+        for (offset, length) in tqdm.tqdm(index_ranges):
+            data = channel_data[offset : offset + length]
+            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+            tdms_writer.write_segment([new_channel])
+    else:
+        for (offset, length) in tqdm.tqdm(index_ranges):
+            data = channel.read_data(offset=offset, length=length)
+            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+            tdms_writer.write_segment([new_channel])
 
 
 def export_correct_data(
@@ -149,5 +163,9 @@ def export_correct_data(
             for channel in group.channels():
                 if len(channel) > 0:
                     write_chunks_to_file(
-                        tdms_writer, index_ranges, group, channel
+                        tdms_writer,
+                        index_ranges,
+                        group,
+                        channel,
+                        meta.cached_read,
                     )
