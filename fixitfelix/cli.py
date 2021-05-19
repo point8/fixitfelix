@@ -49,7 +49,7 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
     "-cr",
     "--cached_read",
     is_flag=True,
-    help="Determines if channels are fully read before writing. Use only if channels fit into cache and for low chunk sizes",
+    help="Flag for optimized read for small chunk sizes (Use only if channels fit into memory)",
 )
 def main(
     recurrence_size: int,
