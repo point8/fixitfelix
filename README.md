@@ -1,3 +1,6 @@
+<img align="right" width="200" height="200" src="fife_logo.png">
+
+
 # FixItFelix
 
 This little helper repairs data collected by our project partner with NI Hardware. A bug in the data collection software adds additional values copied from a previous slice at the end of each data chunk before writing it down to disk.
