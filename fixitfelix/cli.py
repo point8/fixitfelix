@@ -13,7 +13,7 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
 
 @click.command()
 @click.argument(
-    "filename", type=click.Path(file_okay=True, dir_okay=False, exists=True)
+    "filename", type=click.Path(file_okay=True, dir_okay=True, exists=True)
 )
 @click.option(
     "--recurrence_size",
@@ -68,16 +68,8 @@ def main(
         cached_read=cached_read,
     )
 
-    tdms_path = pathlib.Path(filename)
-
-    if output_file == "":
-        name = tdms_path.with_suffix("").name + "_corrected.tdms"
-        export_path = tdms_path.parent.joinpath(name)
-    else:
-        export_path = pathlib.Path(output_file)
-
     fix.export_correct_data(
-        tdms_path=tdms_path, meta=meta, export_path=export_path
+        filename=filename, meta=meta, output_file=output_file
     )
 
     CLI_CONFIG.update_config(

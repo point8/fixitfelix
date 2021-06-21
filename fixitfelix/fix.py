@@ -4,6 +4,7 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
+import shutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
 
@@ -121,39 +122,37 @@ def write_chunks_to_file(
             new_channel = nptdms.ChannelObject(group.name, channel.name, data)
             tdms_writer.write_segment([new_channel])
 
+def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
 
-def export_correct_data(
-    tdms_path: pathlib.Path, meta: source.MetaData, export_path: pathlib.Path
-) -> None:
-    """Exports the valid data slices into a new TDMS file on disk.
-
-    Before the export is done, all input parameters are checked for consistency are checked.
-    Moreover, the function raises an execption if MetaData and TdmsFile do not match. (WIP)
-
-    Don't mind the nested for loops, the sizes of the iterators of the first
-    and second stage are very small.
+    """Runs all consistency checks on given tdms file and meta data. All input parameters are checked for consistency.
+    Moreover, the function raises an execption if MetaData and TdmsFile do not match.
 
     Arguments:
-    tdms_path: Path to the tdms file to correct.
     meta: MetaData dict that contains all information needed for correction.
-    export_path: File path for the corrected TDMS file.
+    path: Path to tdms file to check
     """
-
-    p = either.Right(export_path) | check_export_path
-
-    if isinstance(p, either.Left):
-        raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
-
     res = (
         either.Right(meta)
         | error_handling.check_meta
-        | combine_with_tdms(tdms_path)
+        | combine_with_tdms(path)
         | error_handling.check_source_file
     )
 
     if isinstance(res, either.Left):
         raise Exception(error_handling.ERROR_DESCRIPTIONS.get(res._value))
-    source_file = res._value
+    return res._value
+
+
+def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
+    """Exports the valid data slices into a new TDMS file on disk.
+
+    Don't mind the nested for loops, the sizes of the iterators of the first
+    and second stage are very small.
+
+    Arguments:
+    source_file: Tdms file, that passed all consistency checks
+    export_path: File path for the corrected TDMS file.
+    """
 
     index_ranges = prepare_data_correction(source_file)
 
@@ -168,3 +167,76 @@ def export_correct_data(
                         channel,
                         meta.cached_read,
                     )
+
+
+def export_correct_data(
+    filename: str, meta: source.MetaData, output_file: str
+) -> None:
+    """ Accepts either a path to a tdms file or to a folder with just tdms files to correct.
+    The name of the resulting folder or file is defined by output_file.
+    If output_file is empty, the name of the resulting file or folder is the previous name with '_corrected' as suffix.
+    All files in a folder will retain their previous name with '_corrected' suffix.
+    In case of a folder as input all tdms files are first checked for consistency so no file is corrected before each file is checked.
+    Afterwards all files are corrected and exported. This prevents cases where a later file is not valid for correction.
+    If a single file is given, the file is checked and corrected immediately.
+
+    Arguments:
+    filename: Path to the tdms file or folder with tdms files to correct.
+    meta: MetaData dict that contains all information needed for correction.
+    output_file: File path for the corrected TDMS file or folder.
+    """
+
+    # Determines generalized export path
+
+    path = pathlib.Path(filename)
+
+    p = either.Right(path) | error_handling.check_input_path
+    if isinstance(p, either.Left):
+        raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
+
+    if output_file == "":
+        name = path.with_suffix("").name + "_corrected"
+        export_path = path.parent.joinpath(name)
+    else:
+        export_path = pathlib.Path(output_file)
+
+    p = either.Right(export_path) | check_export_path
+    if isinstance(p, either.Left):
+        raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
+
+    # Directory and single file are handled seperately
+
+    if path.is_dir():
+        p = either.Right(path) | error_handling.check_dir_empty
+        if isinstance(p, either.Left):
+            raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
+
+        if export_path.exists():
+            shutil.rmtree(export_path)
+        export_path.mkdir()
+
+        # Checks each file in folder for consistency
+
+        files_in_dir = len(list(path.iterdir()))
+        source_files = []
+        for i, tdms_file in enumerate(path.iterdir()):
+            print(f"Preprocess file {i+1} of {files_in_dir} at {tdms_file}")
+            source_files.append(preprocess(meta=meta, path=tdms_file))
+
+        # Corrects and exports each file in folder
+
+        for i, tdms_file in enumerate(path.iterdir()):
+            print(f"Fix file {i+1} of {files_in_dir} at {tdms_file}")
+            name = tdms_file.with_suffix("").name + "_corrected.tdms"
+            export_to_tmds(
+                source_file=source_files[i],
+                export_path=export_path.joinpath(name),
+            )
+
+    else:
+        # Single file case
+
+        name = export_path.name + ".tdms"
+        export_path = export_path.parent.joinpath(name)
+        source_file = preprocess(meta=meta, path=path)
+        export_to_tmds(source_file=source_file, export_path=export_path)
