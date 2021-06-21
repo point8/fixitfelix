@@ -29,7 +29,7 @@ The data is stored in a National Instruments TDMS binary file. This file is then
 
 Alternatively the input data can be stored in a directory. This directory has to contain exclusively TDMS binary files. If the directory is chosen as input, all files are corrected at once.
 
-The three variables that describe the error pattern are than used to make a list of index pairs that describe the "good data" chunks. Those chunks are then written to a new, corrected TDMS file.
+The three variables that describe the error pattern are than used to make a list of index pairs that describe the "good data" chunks. Those chunks are then written to a new, corrected TDMS file. There are two methods of reading out the data before writing to the the corrected TDMS file. The default method is to read out each chunk individually. This is a reliable method which works for any data. The second method is to read out a whole channel and slice it into chunks. This method should be used, if the chunk size is especially low to avoid excessive reads and increase performance. You should also only use this method, if each of the channels fits into memory.
 
 Because we do not want to rely on correct pattern variables, we employed an error monade to do several tests on the data and check if the recurrences in the data are described correctly. In case of a directory as input, all files are checked first before written to disk. At the moment, you have to find the correct variables on your own. We may build an algorithm to automate the pattern recognition later.
 

@@ -98,6 +98,7 @@ def write_chunks_to_file(
     index_ranges: List[Tuple[int, int]],
     group,
     channel,
+    cached_read: bool,
 ):
     """Writes correct data slice per slice to disk.
 
@@ -106,12 +107,20 @@ def write_chunks_to_file(
     index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
+    cached_read: Determines which read method is used
     """
-    for (offset, length) in tqdm.tqdm(index_ranges):
-        data = channel.read_data(offset=offset, length=length)
-        new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-        tdms_writer.write_segment([new_channel])
 
+    if cached_read:
+        channel_data = channel.read_data()
+        for (offset, length) in tqdm.tqdm(index_ranges):
+            data = channel_data[offset : offset + length]
+            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+            tdms_writer.write_segment([new_channel])
+    else:
+        for (offset, length) in tqdm.tqdm(index_ranges):
+            data = channel.read_data(offset=offset, length=length)
+            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+            tdms_writer.write_segment([new_channel])
 
 def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
 
@@ -152,7 +161,11 @@ def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
             for channel in group.channels():
                 if len(channel) > 0:
                     write_chunks_to_file(
-                        tdms_writer, index_ranges, group, channel
+                        tdms_writer,
+                        index_ranges,
+                        group,
+                        channel,
+                        meta.cached_read,
                     )
 
 

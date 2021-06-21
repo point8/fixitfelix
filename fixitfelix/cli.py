@@ -45,6 +45,12 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
     help="Number of random samples in which the consistency of the TdmsFile and the given meta data is checked",
 )
 @click.option("-o", "--output_file", default="")
+@click.option(
+    "-cr",
+    "--cached_read",
+    is_flag=True,
+    help="Flag for optimized read for small chunk sizes (Use only if channels fit into memory)",
+)
 def main(
     recurrence_size: int,
     recurrence_distance: int,
@@ -52,12 +58,14 @@ def main(
     consistency_sample_size: int,
     output_file: str,
     filename: str,
+    cached_read: bool,
 ):
     meta = source.MetaData(
         recurrence_distance=recurrence_distance,
         recurrence_size=recurrence_size,
         chunk_size=chunk_size,
         consistency_sample_size=consistency_sample_size,
+        cached_read=cached_read,
     )
 
     fix.export_correct_data(
