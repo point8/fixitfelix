@@ -112,23 +112,32 @@ def write_chunks_to_file(
     """
 
     # standard write
-    diff_check_arr = np.array([])
+    """diff_check1 = np.array([])
     for (offset, length) in tqdm.tqdm(index_ranges):
         data = channel.read_data(offset=offset, length=length)
-        diff_check_arr = np.append(diff_check_arr, data)
+        diff_check1 = np.append(diff_check1, data)
         new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-        tdms_writer.write_segment([new_channel])
+        tdms_writer.write_segment([new_channel])"""
 
+    data = np.array([])
+    for (offset, length) in tqdm.tqdm(index_ranges):
+        data.append(channel.read_data(offset=offset, length=length))
+    new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+    tdms_writer.write_segment([new_channel])
+
+    """
+    # new write
     index_ranges_frags = [(0, sum(index_ranges[-1]), index_ranges)]
-    first_val = channel.read_data(offset=0, length=1)
-    bytes_per_val = first_val.nbytes
     frag_size = len(channel)
-    usable_bytes = usable_memory * 1000000000
 
-    while frag_size > usable_bytes / bytes_per_val:
+    # amount of bytes per value
+    n_bytes = channel.read_data(offset=0, length=1).nbytes
+    # Use quarter of usable memory for each fragment
+    max_frag_size = usable_memory * 1000000000 / 4 / n_bytes
+
+    while frag_size > max_frag_size:
         tmp_frags = []
         for index_frag in index_ranges_frags:
-            print(f"frag at {index_frag[0]}")
             ranges = index_frag[2]
             new_ranges_1 = ranges[: len(ranges) // 2]
             new_ranges_2 = ranges[len(ranges) // 2 :]
@@ -146,39 +155,23 @@ def write_chunks_to_file(
         index_ranges_frags = tmp_frags.copy()
         frag_size = index_ranges_frags[0][1]
 
-    diff_check_arr3 = np.array([])
+    # diff_check2 = np.array([])
     for index_frag in index_ranges_frags:
         channel_data = channel.read_data(
             offset=index_frag[0], length=index_frag[1] - index_frag[0]
         )
+        print(f"length of cached data: {len(channel_data)}")
         clean_data = np.array([])
         for (offset, length) in tqdm.tqdm(index_frag[2]):
-            data = channel_data[offset : offset + length]
-            diff_check_arr3 = np.append(diff_check_arr3, data)
-            clean_data = np.append(clean_data, data)
+            # diff_check2 = np.append(diff_check2, data)
+            clean_data = np.append(
+                clean_data, channel_data[offset : offset + length]
+            )
         new_channel = nptdms.ChannelObject(group.name, channel.name, clean_data)
         tdms_writer.write_segment([new_channel])
 
-    comp2 = diff_check_arr == diff_check_arr3
-    print(f"Are std read and frag read the same: {comp2.all()}")
-    # comp3 = diff_check_arr3[:frag_size*2] == diff_check_arr3[frag_size*2:]
-    # print(f"Is first and second half of array 3 the same: {comp3}")
-    # print(f"Length of 1: {len(diff_check_arr)}")
-    # print(f"Length of 2: {len(diff_check_arr2)}")
-    # print(f"Length of 3: {len(diff_check_arr3)}")
-
-    """
-    if cached_read:
-        channel_data = channel.read_data()
-        for (offset, length) in tqdm.tqdm(index_ranges):
-            data = channel_data[offset : offset + length]
-            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-            tdms_writer.write_segment([new_channel])
-    else:
-        for (offset, length) in tqdm.tqdm(index_ranges):
-            data = channel.read_data(offset=offset, length=length)
-            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-            tdms_writer.write_segment([new_channel])
+    # comp = diff_check1 == diff_check2
+    # print(f"Are std read and new read the same: {comp.all()}")
     """
 
 
@@ -203,7 +196,9 @@ def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
     return res._value
 
 
-def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
+def export_to_tmds(
+    meta: source.MetaData, source_file: Any, export_path: pathlib.Path
+) -> None:
     """Exports the valid data slices into a new TDMS file on disk.
 
     Don't mind the nested for loops, the sizes of the iterators of the first
@@ -289,6 +284,7 @@ def export_correct_data(
             print(f"Fix file {i+1} of {files_in_dir} at {tdms_file}")
             name = tdms_file.with_suffix("").name + "_corrected.tdms"
             export_to_tmds(
+                meta=meta,
                 source_file=source_files[i],
                 export_path=export_path.joinpath(name),
             )
@@ -299,4 +295,6 @@ def export_correct_data(
         name = export_path.name + ".tdms"
         export_path = export_path.parent.joinpath(name)
         source_file = preprocess(meta=meta, path=path)
-        export_to_tmds(source_file=source_file, export_path=export_path)
+        export_to_tmds(
+            meta=meta, source_file=source_file, export_path=export_path
+        )

@@ -51,7 +51,7 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
     prompt=True,
     default=CLI_CONFIG.usable_memory,
     type=int,
-    help="Amount of memory (in gigabyte) available to read and write channels ",
+    help="Amount of memory (in gigabyte) available for fixing",
 )
 def main(
     recurrence_size: int,

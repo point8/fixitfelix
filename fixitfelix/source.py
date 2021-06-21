@@ -10,7 +10,7 @@ class MetaData(NamedTuple):
     recurrence_distance: int
     chunk_size: int
     consistency_sample_size: int
-    cached_read: bool
+    usable_memory: int
 
 
 class SourceFile:
