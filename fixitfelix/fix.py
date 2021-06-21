@@ -98,7 +98,7 @@ def write_chunks_to_file(
     index_ranges: List[Tuple[int, int]],
     group,
     channel,
-    cached_read: bool,
+    usable_memory: int,
 ):
     """Writes correct data slice per slice to disk.
 
@@ -107,9 +107,60 @@ def write_chunks_to_file(
     index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
-    cached_read: Determines which read method is used
     """
 
+
+    #standard write
+    diff_check_arr = np.array([])
+    for (offset,length) in tqdm.tqdm(index_ranges):
+        data = channel.read_data(offset=offset,length=length)
+        diff_check_arr = np.append(diff_check_arr, data)
+        new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+        tdms_writer.write_segment([new_channel])
+
+
+    index_ranges_frags = [(0, sum(index_ranges[-1]), index_ranges)]
+    first_val = channel.read_data(offset=0, length=1)
+    bytes_per_val = first_val.nbytes
+    frag_size = len(channel)
+    usable_bytes = usable_memory*1000000000
+
+    while frag_size > usable_bytes/bytes_per_val:
+        tmp_frags = []
+        for index_frag in index_ranges_frags:
+            print(f"frag at {index_frag[0]}")
+            ranges = index_frag[2]
+            new_ranges_1 = ranges[:len(ranges)//2]
+            new_ranges_2 = ranges[len(ranges)//2:]
+            split_offset = new_ranges_2[0][0]
+            new_ranges_2 = [(offset-split_offset, length) for (offset, length) in new_ranges_2]
+            tmp_frags.append((index_frag[0], index_frag[0]+split_offset, new_ranges_1))
+            tmp_frags.append((index_frag[0]+split_offset, index_frag[1], new_ranges_2))
+        index_ranges_frags = tmp_frags.copy()
+        frag_size = index_ranges_frags[0][1]
+
+    diff_check_arr3 = np.array([])
+    for index_frag in index_ranges_frags:
+        channel_data = channel.read_data(offset=index_frag[0],length=index_frag[1]-index_frag[0])
+        clean_data = np.array([])
+        for (offset,length) in tqdm.tqdm(index_frag[2]):
+            data = channel_data[offset:offset+length]
+            diff_check_arr3 = np.append(diff_check_arr3, data)
+            clean_data = np.append(clean_data, data)
+        new_channel = nptdms.ChannelObject(group.name, channel.name, clean_data)
+        tdms_writer.write_segment([new_channel])
+
+
+    
+    comp2 = diff_check_arr == diff_check_arr3
+    print(f"Are std read and frag read the same: {comp2.all()}")
+    #comp3 = diff_check_arr3[:frag_size*2] == diff_check_arr3[frag_size*2:]
+    #print(f"Is first and second half of array 3 the same: {comp3}")
+    #print(f"Length of 1: {len(diff_check_arr)}")
+    #print(f"Length of 2: {len(diff_check_arr2)}")
+    #print(f"Length of 3: {len(diff_check_arr3)}")
+
+    """
     if cached_read:
         channel_data = channel.read_data()
         for (offset, length) in tqdm.tqdm(index_ranges):
@@ -121,8 +172,12 @@ def write_chunks_to_file(
             data = channel.read_data(offset=offset, length=length)
             new_channel = nptdms.ChannelObject(group.name, channel.name, data)
             tdms_writer.write_segment([new_channel])
+<<<<<<< Updated upstream
 
 def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
+=======
+    """
+>>>>>>> Stashed changes
 
     """Runs all consistency checks on given tdms file and meta data. All input parameters are checked for consistency.
     Moreover, the function raises an execption if MetaData and TdmsFile do not match.
@@ -165,7 +220,7 @@ def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
                         index_ranges,
                         group,
                         channel,
-                        meta.cached_read,
+                        meta.usable_memory,
                     )
 
 

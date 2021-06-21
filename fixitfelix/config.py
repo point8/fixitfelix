@@ -11,6 +11,7 @@ class CliConfig:
     recurrence_size: Optional[int]
     chunk_size: Optional[int]
     consistency_sample_size: Optional[int]
+    usable_memory: Optional[int]
 
     def to_yaml(self, file_path: pathlib.Path) -> None:
         """Stores data from fields into yaml file at file_path"""
@@ -47,9 +48,11 @@ class CliConfig:
         recurrence_distance: int,
         chunk_size: int,
         consistency_sample_size: int,
+        usable_memory: int,
     ) -> None:
         """Updates fields."""
         self.recurrence_size = recurrence_size
         self.recurrence_distance = recurrence_distance
         self.chunk_size = chunk_size
         self.consistency_sample_size = consistency_sample_size
+        self.usable_memory = usable_memory
