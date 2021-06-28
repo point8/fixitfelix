@@ -106,6 +106,7 @@ def write_chunks_to_file(
     index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
+    segment_size: Sets size of each segment written to a TDMS file
     """
 
     clean_data = []
@@ -114,6 +115,7 @@ def write_chunks_to_file(
         data = channel.read_data(offset=offset, length=length)
         clean_data.append(data)
         clean_data_nbytes += data.nbytes
+        # When segment_size is reached, a new segment is written to file
         if clean_data_nbytes > segment_size * 1000000000:
             new_channel = nptdms.ChannelObject(
                 group.name, channel.name, np.concatenate(clean_data)
@@ -122,6 +124,7 @@ def write_chunks_to_file(
             clean_data = []
             clean_data_nbytes = 0
 
+    # The remaining chunks are written to file as a last smaller segment
     if clean_data:
         new_channel = nptdms.ChannelObject(
             group.name, channel.name, np.concatenate(clean_data)
@@ -159,6 +162,7 @@ def export_to_tmds(
     and second stage are very small.
 
     Arguments:
+    meta: meta data of source file
     source_file: Tdms file, that passed all consistency checks
     export_path: File path for the corrected TDMS file.
     """
