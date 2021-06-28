@@ -46,12 +46,12 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
 )
 @click.option("-o", "--output_file", default="")
 @click.option(
-    "-m",
-    "--usable_memory",
+    "-s",
+    "--segment_size",
     prompt=True,
-    default=CLI_CONFIG.usable_memory,
+    default=CLI_CONFIG.segment_size,
     type=int,
-    help="Amount of memory (in gigabyte) available for fixing",
+    help="Size of segments written to output file in GB. Use 0 to write each chunk as one segment",
 )
 def main(
     recurrence_size: int,
@@ -60,14 +60,14 @@ def main(
     consistency_sample_size: int,
     output_file: str,
     filename: str,
-    usable_memory: int,
+    segment_size: int,
 ):
     meta = source.MetaData(
         recurrence_distance=recurrence_distance,
         recurrence_size=recurrence_size,
         chunk_size=chunk_size,
         consistency_sample_size=consistency_sample_size,
-        usable_memory=usable_memory,
+        segment_size=segment_size,
     )
 
     fix.export_correct_data(
@@ -79,6 +79,6 @@ def main(
         recurrence_size=recurrence_size,
         chunk_size=chunk_size,
         consistency_sample_size=consistency_sample_size,
-        usable_memory=usable_memory,
+        segment_size=segment_size,
     )
     CLI_CONFIG.to_yaml(PATH_TO_CONFIG)

@@ -4,7 +4,6 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
-import shutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
 
@@ -83,9 +82,7 @@ def combine_with_tdms(
     return _f
 
 
-def check_export_path(
-    path: pathlib.Path,
-) -> either.Either:
+def check_export_path(path: pathlib.Path,) -> either.Either:
     """It should not be possible to choose a nonexistent folder in the export
     path. This function checks if this is satisfied.
     Return type is Either[error_handling.ErrorCode, pathlib.Path]"""
@@ -100,7 +97,7 @@ def write_chunks_to_file(
     index_ranges: List[Tuple[int, int]],
     group,
     channel,
-    usable_memory: int,
+    segment_size: int,
 ):
     """Writes correct data slice per slice to disk.
 
@@ -111,68 +108,25 @@ def write_chunks_to_file(
     channel: TDMS Channel inside group
     """
 
-    # standard write
-    """diff_check1 = np.array([])
+    clean_data = []
+    clean_data_nbytes = 0
     for (offset, length) in tqdm.tqdm(index_ranges):
         data = channel.read_data(offset=offset, length=length)
-        diff_check1 = np.append(diff_check1, data)
-        new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-        tdms_writer.write_segment([new_channel])"""
-
-    data = np.array([])
-    for (offset, length) in tqdm.tqdm(index_ranges):
-        data.append(channel.read_data(offset=offset, length=length))
-    new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-    tdms_writer.write_segment([new_channel])
-
-    """
-    # new write
-    index_ranges_frags = [(0, sum(index_ranges[-1]), index_ranges)]
-    frag_size = len(channel)
-
-    # amount of bytes per value
-    n_bytes = channel.read_data(offset=0, length=1).nbytes
-    # Use quarter of usable memory for each fragment
-    max_frag_size = usable_memory * 1000000000 / 4 / n_bytes
-
-    while frag_size > max_frag_size:
-        tmp_frags = []
-        for index_frag in index_ranges_frags:
-            ranges = index_frag[2]
-            new_ranges_1 = ranges[: len(ranges) // 2]
-            new_ranges_2 = ranges[len(ranges) // 2 :]
-            split_offset = new_ranges_2[0][0]
-            new_ranges_2 = [
-                (offset - split_offset, length)
-                for (offset, length) in new_ranges_2
-            ]
-            tmp_frags.append(
-                (index_frag[0], index_frag[0] + split_offset, new_ranges_1)
+        clean_data.append(data)
+        clean_data_nbytes += data.nbytes
+        if clean_data_nbytes > segment_size * 1000000000:
+            new_channel = nptdms.ChannelObject(
+                group.name, channel.name, np.concatenate(clean_data)
             )
-            tmp_frags.append(
-                (index_frag[0] + split_offset, index_frag[1], new_ranges_2)
-            )
-        index_ranges_frags = tmp_frags.copy()
-        frag_size = index_ranges_frags[0][1]
+            tdms_writer.write_segment([new_channel])
+            clean_data = []
+            clean_data_nbytes = 0
 
-    # diff_check2 = np.array([])
-    for index_frag in index_ranges_frags:
-        channel_data = channel.read_data(
-            offset=index_frag[0], length=index_frag[1] - index_frag[0]
+    if clean_data:
+        new_channel = nptdms.ChannelObject(
+            group.name, channel.name, np.concatenate(clean_data)
         )
-        print(f"length of cached data: {len(channel_data)}")
-        clean_data = np.array([])
-        for (offset, length) in tqdm.tqdm(index_frag[2]):
-            # diff_check2 = np.append(diff_check2, data)
-            clean_data = np.append(
-                clean_data, channel_data[offset : offset + length]
-            )
-        new_channel = nptdms.ChannelObject(group.name, channel.name, clean_data)
         tdms_writer.write_segment([new_channel])
-
-    # comp = diff_check1 == diff_check2
-    # print(f"Are std read and new read the same: {comp.all()}")
-    """
 
 
 def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
@@ -220,7 +174,7 @@ def export_to_tmds(
                         index_ranges,
                         group,
                         channel,
-                        meta.usable_memory,
+                        meta.segment_size,
                     )
 
 
@@ -266,9 +220,8 @@ def export_correct_data(
         if isinstance(p, either.Left):
             raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
 
-        if export_path.exists():
-            shutil.rmtree(export_path)
-        export_path.mkdir()
+        if not export_path.exists():
+            export_path.mkdir()
 
         # Checks each file in folder for consistency
 
