@@ -116,7 +116,7 @@ def write_chunks_to_file(
         clean_data.append(data)
         clean_data_nbytes += data.nbytes
         # When segment_size is reached, a new segment is written to file
-        if clean_data_nbytes > segment_size * 1000000000:
+        if clean_data_nbytes > segment_size * 1_000_000_000:
             new_channel = nptdms.ChannelObject(
                 group.name, channel.name, np.concatenate(clean_data)
             )
