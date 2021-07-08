@@ -46,10 +46,12 @@ CLI_CONFIG = config.CliConfig.from_yaml(PATH_TO_CONFIG)
 )
 @click.option("-o", "--output_file", default="")
 @click.option(
-    "-cr",
-    "--cached_read",
-    is_flag=True,
-    help="Flag for optimized read for small chunk sizes (Use only if channels fit into memory)",
+    "-s",
+    "--segment_size",
+    prompt=True,
+    default=CLI_CONFIG.segment_size,
+    type=int,
+    help="Size of segments written to output file in GB. Use 0 to write each chunk as one segment",
 )
 def main(
     recurrence_size: int,
@@ -58,14 +60,14 @@ def main(
     consistency_sample_size: int,
     output_file: str,
     filename: str,
-    cached_read: bool,
+    segment_size: int,
 ):
     meta = source.MetaData(
         recurrence_distance=recurrence_distance,
         recurrence_size=recurrence_size,
         chunk_size=chunk_size,
         consistency_sample_size=consistency_sample_size,
-        cached_read=cached_read,
+        segment_size=segment_size,
     )
 
     fix.export_correct_data(
@@ -77,5 +79,6 @@ def main(
         recurrence_size=recurrence_size,
         chunk_size=chunk_size,
         consistency_sample_size=consistency_sample_size,
+        segment_size=segment_size,
     )
     CLI_CONFIG.to_yaml(PATH_TO_CONFIG)

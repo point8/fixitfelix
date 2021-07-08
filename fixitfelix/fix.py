@@ -4,7 +4,6 @@ from typing import Any, Callable, List, Tuple
 import nptdms
 import numpy as np
 import tqdm
-import shutil
 
 from fixitfelix import either, error_handling, source, tdms_helpers
 
@@ -98,7 +97,7 @@ def write_chunks_to_file(
     index_ranges: List[Tuple[int, int]],
     group,
     channel,
-    cached_read: bool,
+    segment_size: int,
 ):
     """Writes correct data slice per slice to disk.
 
@@ -107,20 +106,31 @@ def write_chunks_to_file(
     index_ranges: Chunk Indices that point to valid data slices
     group: TDMS Group inside the old tdms file
     channel: TDMS Channel inside group
-    cached_read: Determines which read method is used
+    segment_size: Sets size of each segment written to a TDMS file
     """
 
-    if cached_read:
-        channel_data = channel.read_data()
-        for (offset, length) in tqdm.tqdm(index_ranges):
-            data = channel_data[offset : offset + length]
-            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
+    clean_data = []
+    clean_data_nbytes = 0
+    for (offset, length) in tqdm.tqdm(index_ranges):
+        data = channel.read_data(offset=offset, length=length)
+        clean_data.append(data)
+        clean_data_nbytes += data.nbytes
+        # When segment_size is reached, a new segment is written to file
+        if clean_data_nbytes > segment_size * 1_000_000_000:
+            new_channel = nptdms.ChannelObject(
+                group.name, channel.name, np.concatenate(clean_data)
+            )
             tdms_writer.write_segment([new_channel])
-    else:
-        for (offset, length) in tqdm.tqdm(index_ranges):
-            data = channel.read_data(offset=offset, length=length)
-            new_channel = nptdms.ChannelObject(group.name, channel.name, data)
-            tdms_writer.write_segment([new_channel])
+            clean_data = []
+            clean_data_nbytes = 0
+
+    # The remaining chunks are written to file as a last smaller segment
+    if clean_data:
+        new_channel = nptdms.ChannelObject(
+            group.name, channel.name, np.concatenate(clean_data)
+        )
+        tdms_writer.write_segment([new_channel])
+
 
 def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
 
@@ -143,13 +153,16 @@ def preprocess(meta: source.MetaData, path: pathlib.Path) -> source.SourceFile:
     return res._value
 
 
-def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
+def export_to_tmds(
+    meta: source.MetaData, source_file: Any, export_path: pathlib.Path
+) -> None:
     """Exports the valid data slices into a new TDMS file on disk.
 
     Don't mind the nested for loops, the sizes of the iterators of the first
     and second stage are very small.
 
     Arguments:
+    meta: meta data of source file
     source_file: Tdms file, that passed all consistency checks
     export_path: File path for the corrected TDMS file.
     """
@@ -165,14 +178,14 @@ def export_to_tmds(source_file: Any, export_path: pathlib.Path) -> None:
                         index_ranges,
                         group,
                         channel,
-                        meta.cached_read,
+                        meta.segment_size,
                     )
 
 
 def export_correct_data(
     filename: str, meta: source.MetaData, output_file: str
 ) -> None:
-    """ Accepts either a path to a tdms file or to a folder with just tdms files to correct.
+    """Accepts either a path to a tdms file or to a folder with just tdms files to correct.
     The name of the resulting folder or file is defined by output_file.
     If output_file is empty, the name of the resulting file or folder is the previous name with '_corrected' as suffix.
     All files in a folder will retain their previous name with '_corrected' suffix.
@@ -211,9 +224,8 @@ def export_correct_data(
         if isinstance(p, either.Left):
             raise Exception(error_handling.ERROR_DESCRIPTIONS.get(p._value))
 
-        if export_path.exists():
-            shutil.rmtree(export_path)
-        export_path.mkdir()
+        if not export_path.exists():
+            export_path.mkdir()
 
         # Checks each file in folder for consistency
 
@@ -229,6 +241,7 @@ def export_correct_data(
             print(f"Fix file {i+1} of {files_in_dir} at {tdms_file}")
             name = tdms_file.with_suffix("").name + "_corrected.tdms"
             export_to_tmds(
+                meta=meta,
                 source_file=source_files[i],
                 export_path=export_path.joinpath(name),
             )
@@ -239,4 +252,6 @@ def export_correct_data(
         name = export_path.name + ".tdms"
         export_path = export_path.parent.joinpath(name)
         source_file = preprocess(meta=meta, path=path)
-        export_to_tmds(source_file=source_file, export_path=export_path)
+        export_to_tmds(
+            meta=meta, source_file=source_file, export_path=export_path
+        )
